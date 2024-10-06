@@ -5,7 +5,9 @@ from machine import Pin, PWM
 import socket
 import json
 
-binMaxCapacity = 50
+binMaxCapacity = 50  # Maximum bin capacity in cm
+heartbeat = 10  # Heartbeat interval in seconds
+
 # Wi-Fi Credentials
 ssid = 'Redmi'
 password = '876543210'
@@ -19,12 +21,12 @@ TRIG_PIN_HC = 33  # GPIO pin for Trig (HC-SR04)
 ECHO_PIN_HC = 32  # GPIO pin for Echo (HC-SR04)
 
 # Define pin for the LED and Servo Motor
-LED = Pin(26, Pin.OUT)
+LED = Pin(26, Pin.OUT)  # LED to indicate bin lid status
 servo_pin = PWM(Pin(25), freq=50)  # Servo motor pin (50 Hz PWM for servo)
 
-# Define URL for your Node.js server
-nodejs_server_url = 'https://test-iot-554d.onrender.com/sensor-distance'
-heartbeat_url = 'https://test-iot-554d.onrender.com/sensor-heartbeat'
+# URLs for your Node.js server
+nodejs_server_url = 'https://ewms-eco-smart-waste-management-system.onrender.com/api/bin/sensor-distance'
+heartbeat_url = 'https://ewms-eco-smart-waste-management-system.onrender.com/api/bin/sensor-heartbeat'
 
 # Function to connect to Wi-Fi
 def connect_wifi():
@@ -82,7 +84,10 @@ def measure_waste_level():
     return measure_distance(TRIG_PIN_AJ, ECHO_PIN_AJ)
 
 def measure_lid_distance():
-    return measure_distance(TRIG_PIN_HC, ECHO_PIN_HC)
+    distance = measure_distance(TRIG_PIN_HC, ECHO_PIN_HC)
+    if distance == -1:
+        distance = 400  # Set a default value, assuming the bin is far or the lid is closed.
+    return distance
 
 # Function to control the servo motor (open/close bin lid)
 def control_servo(position):
@@ -93,6 +98,7 @@ def control_servo(position):
         servo_pin.duty(125)  # Adjust duty value for your servo to close the lid
         LED.value(0)         # Turn off LED when the lid is closed
 
+# Function to calculate bin fill percentage based on the measured distance
 def calculate_percentage(distance):
     full_bin_distance = 20  # Distance for 100% (full)
     empty_bin_distance = binMaxCapacity  # Distance for 0% (empty)
@@ -130,6 +136,7 @@ def http_get(host, path):
     finally:
         s.close()
 
+# Function to get public IP address
 def get_public_ip():
     try:
         ip_info = http_get("api.ipify.org", "/?format=json")
@@ -138,6 +145,7 @@ def get_public_ip():
         print(f"Error fetching public IP: {e}")
         return None
 
+# Function to get location based on IP address
 def get_location(ip_address):
     try:
         if not ip_address:
@@ -181,7 +189,7 @@ previous_distance_hc = None  # To track previous distance measurement for HC-SR0
 distance_threshold = 5        # Define a threshold for distance change
 heartbeat_counter = 0         # Counter for heartbeat
 
-# Heartbeat function
+# Heartbeat function to notify the server
 def send_heartbeat():
     heartbeat_data = {
         "id": 1,
@@ -196,6 +204,7 @@ def send_heartbeat():
     except Exception as e:
         print('Error sending heartbeat:', e)
 
+# Main loop
 while True:
     try:
         # Measure distance from AJ-SR04M (waste level sensor)
@@ -219,15 +228,16 @@ while True:
         else:
             print(f'HC-SR04 Distance: {distance_hc} cm')
 
+        # Calculate bin fill percentage
         percentage = calculate_percentage(distance_aj)
         print(f'Percentage: {percentage}%')
 
         # Control the servo motor based on HC-SR04 distance (lid open/close logic)
-        if distance_hc <= 20:
-            control_servo("OPEN")  # Open the bin lid if distance <= 20 cm
+        if distance_hc <= 25:
+            control_servo("OPEN")  # Open the bin lid if distance <= 25 cm
             binLid_status = "OPEN"
         else:
-            control_servo("CLOSED")  # Close the bin lid if distance > 20 cm
+            control_servo("CLOSED")  # Close the bin lid if distance > 25 cm
             binLid_status = "CLOSED"
 
         # Check for significant changes in distances to send immediate updates
@@ -235,21 +245,12 @@ while True:
             previous_distance_hc is None or abs(previous_distance_hc - distance_hc) > distance_threshold):
 
             # Prepare dynamic data to send to the server
-#             sensor_data = {
-#                 "distance": distance_aj,
-#                 "percentage": percentage,
-#                 "lidDistance": distance_hc,
-#                 "binLidStatus": binLid_status,
-#                 "wasteLevelSensorStatus": waste_level_sensor_status,
-#                 "latitude": latitude,
-#                 "longitude": longitude
-#             }
             sensor_data = {
                 "id": 1,  
                 "binLocation": "Canteen",
                 "distance": distance_aj, 
                 "filledBinPercentage": percentage, 
-               "geoLocation": {
+                "geoLocation": {
                     "latitude": latitude,
                     "longitude": longitude
                 },
@@ -271,12 +272,14 @@ while True:
             previous_distance_aj = distance_aj
             previous_distance_hc = distance_hc
 
-        # Send heartbeat every 5 seconds
+        # Send heartbeat every 10 seconds
         heartbeat_counter += 1
-        if heartbeat_counter >= 10:  # Adjust the frequency as needed
+        if heartbeat_counter >= heartbeat:  # Adjust the frequency as needed
             send_heartbeat()
             heartbeat_counter = 0
 
         time.sleep(1)  # Delay between measurements
     except Exception as e:
         print('Error in main loop:', e)
+
+
