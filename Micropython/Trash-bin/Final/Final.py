@@ -261,7 +261,7 @@ while True:
             }
 
             try:
-                response = urequests.post(nodejs_server_url, json=sensor_data)
+                response = urequests.patch(nodejs_server_url, json=sensor_data)
                 print(f'Sensor Data sent: {response.status_code}, Response: {response.text}')
                 print(sensor_data)
                 response.close()
