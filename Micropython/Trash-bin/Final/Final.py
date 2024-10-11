@@ -246,7 +246,7 @@ while True:
 
             # Prepare dynamic data to send to the server
             sensor_data = {
-                "id": 1,  
+                "id": "Bin-1",  
                 "binLocation": "Canteen",
                 "distance": distance_aj, 
                 "filledBinPercentage": percentage, 
