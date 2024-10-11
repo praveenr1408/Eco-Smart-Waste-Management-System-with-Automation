@@ -192,7 +192,7 @@ heartbeat_counter = 0         # Counter for heartbeat
 # Heartbeat function to notify the server
 def send_heartbeat():
     heartbeat_data = {
-        "id": 1,
+        "id": "Bin-1",
         "binLocation": "Canteen",
         "microProcessorStatus": "ON"
     }
