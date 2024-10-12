@@ -5,8 +5,6 @@ from machine import Pin, PWM
 import socket
 import json
 
-jwt_token = None
-
 binMaxCapacity = 50  # Maximum bin capacity in cm
 heartbeat = 10  # Heartbeat interval in seconds
 
@@ -29,7 +27,6 @@ servo_pin = PWM(Pin(25), freq=50)  # Servo motor pin (50 Hz PWM for servo)
 # URLs for your Node.js server
 nodejs_server_url = 'https://ewms-eco-smart-waste-management-system.onrender.com/api/bin/sensor-distance'
 heartbeat_url = 'https://ewms-eco-smart-waste-management-system.onrender.com/api/bin/sensor-heartbeat'
-login_url = 'https://ewms-eco-smart-waste-management-system.onrender.com/api/user/login'
 
 # Function to connect to Wi-Fi
 def connect_wifi():
@@ -44,26 +41,6 @@ def connect_wifi():
 
     print('Connected to Wi-Fi')
     print('Network config:', wlan.ifconfig())
-    
-# Function to log in and retrieve JWT token
-def login_and_get_token(email, password):
-    
-    payload = {
-        "email": email,
-        "password": password
-    }
-    try:
-        response = urequests.post(login_url, json=payload)
-        if response.status_code == 200:
-            token_data = response.json()
-            return token_data.get('token')  # Assuming the token is returned under 'token'
-        else:
-            print(f"Login failed: {response.status_code}, Response: {response.text}")
-            return None
-    except Exception as e:
-        print(f"Error during login: {e}")
-        return None
-
 
 # Function to measure distance from a given trig and echo pin
 def measure_distance(trig_pin, echo_pin):
@@ -205,14 +182,6 @@ try:
         print("Failed to get public IP address.")
 except Exception as e:
     print(f"Error during initial setup: {e}")
-    
-# Log in and get the JWT token
-jwt_token = login_and_get_token("praveengabap@gmail.com", "1")
-
-if jwt_token:
-    print("JWT Token received.")
-else:
-    print("Failed to obtain JWT token.")
 
 # Initialize variables
 previous_distance_aj = None  # To track previous distance measurement for AJ-SR04M
@@ -227,9 +196,8 @@ def send_heartbeat():
         "binLocation": "Canteen",
         "microProcessorStatus": "ON"
     }
-    headers = {'Authorization': f'Bearer {jwt_token}'}
     try:
-        response = urequests.patch(heartbeat_url, json=heartbeat_data,headers=headers)
+        response = urequests.post(heartbeat_url, json=heartbeat_data)
         print(f'Heartbeat sent: {response.status_code}, Response: {response.text}')
         print(heartbeat_data)
         response.close()
@@ -291,9 +259,9 @@ while True:
                 "binLidStatus": binLid_status,    
                 "maxBinCapacity": binMaxCapacity         
             }
-            headers = {'Authorization': f'Bearer {jwt_token}'}
+
             try:
-                response = urequests.patch(nodejs_server_url, json=sensor_data,headers=headers)
+                response = urequests.patch(nodejs_server_url, json=sensor_data)
                 print(f'Sensor Data sent: {response.status_code}, Response: {response.text}')
                 print(sensor_data)
                 response.close()
@@ -313,4 +281,5 @@ while True:
         time.sleep(1)  # Delay between measurements
     except Exception as e:
         print('Error in main loop:', e)
+
 
